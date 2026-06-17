@@ -141,7 +141,7 @@ async def _bm25_retrieve(
 ) -> List[Tuple[str, float]]:
     """Run BM25 retrieval via Indexing Service."""
     top_k = top_k_override or req.top_k
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         search_r = await client.post(
             f"{INDEXING_URL}/search/inverted",
             json={"terms": query_tokens, "top_k": top_k * 5},

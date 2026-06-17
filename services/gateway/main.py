@@ -173,7 +173,7 @@ async def search(req: SearchRequest):
             refinement_info = {"error": str(e)}
 
     # ── Step 2: Retrieval ──
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         retrieval_r = await client.post(
             f"{SERVICES['retrieval']}/retrieve",
             json={
