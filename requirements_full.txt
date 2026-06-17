@@ -1,0 +1,60 @@
+  
+# ─── API Gateway ──────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+httpx==0.27.0
+pydantic==2.7.1
+python-dotenv==1.0.1
+
+# ─── Data Loading ─────────────────────────────────────────
+ir-datasets==0.5.11          # تحميل MS MARCO, NQ, ...
+
+# ─── Preprocessing ────────────────────────────────────────
+nltk==3.8.1                  # Stemming, Lemmatization, Stopwords
+spacy==3.7.4                 # Lemmatization متقدم
+pyspellchecker==0.8.1        # تصحيح إملائي
+langdetect==1.0.9            # كشف اللغة (للميزة متعددة اللغات)
+
+# ─── TF-IDF & BM25 ────────────────────────────────────────
+scikit-learn==1.4.2          # TfidfVectorizer, cosine_similarity
+rank-bm25==0.2.2             # BM25Okapi جاهز الاستخدام
+scipy==1.13.0                # Sparse matrices للفهرس
+
+# ─── Embeddings ───────────────────────────────────────────
+gensim==4.4.0                # Word2Vec, FastText
+sentence-transformers==3.0.1 # Sentence-BERT (all-MiniLM-L6-v2 ...)
+transformers==4.41.2         # BERT, RoBERTa
+torch==2.3.0                 # PyTorch (مطلوب لـ transformers)
+
+# ─── Vector Store ─────────────────────────────────────────
+faiss-cpu==1.8.0             # Vector similarity search سريع
+chromadb==0.5.0              # Vector DB (للميزة الإضافية RAG)
+
+# ─── Indexing & Storage ───────────────────────────────────
+whoosh==2.7.4                # Inverted Index جاهز
+elasticsearch==8.13.0        # اختياري - Distributed IR
+numpy==1.26.4
+pandas==2.2.2
+
+# ─── Evaluation ───────────────────────────────────────────
+pytrec-eval-terrier==0.5.6   # MAP, nDCG, P@10, Recall رسمي
+ranx==0.3.19                 # مكتبة تقييم IR احترافية (بديل أسهل)
+
+# ─── RAG (ميزة إضافية) ────────────────────────────────────
+langchain==0.2.5             # RAG pipeline
+langchain-community==0.2.5
+openai==1.30.5               # أو أي LLM API آخر
+
+# ─── API & Communication ──────────────────────────────────
+requests==2.32.2
+aiohttp==3.9.5               # async HTTP للخدمات
+
+# ─── UI (اختر واحداً) ─────────────────────────────────────
+streamlit==1.35.0            # الأسرع للبناء — موصى به للمشروع
+# flask==3.0.3               # بديل أخف
+
+# ─── Utils ────────────────────────────────────────────────
+tqdm==4.66.4                 # Progress bars
+loguru==0.7.2                # Logging احترافي
+pyyaml==6.0.1                # ملفات config
+joblib==1.4.2                # Parallel processing + caching

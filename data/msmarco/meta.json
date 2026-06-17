@@ -1,0 +1,10 @@
+{
+  "dataset_name": "msmarco",
+  "ir_datasets_id": "msmarco-passage/dev/small",
+  "display_name": "MS MARCO Passage Ranking",
+  "docs_indexed": 1000,
+  "queries_count": 100,
+  "qrels_count": 105,
+  "embedding_model": null,
+  "loaded_at": "2026-06-15T15:06:58.831411"
+}

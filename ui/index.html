@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IR System — محرك البحث</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --surface: #16161a;
+    --surface2: #1e1e24;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8e8f0;
+    --muted: #8888a0;
+    --accent: #6c63ff;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --font: 'IBM Plex Sans Arabic', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 24px 0;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    right: 0; top: 0; bottom: 0;
+  }
+
+  .sidebar-logo {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .logo-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--accent2);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+
+  .nav-section {
+    padding: 0 12px;
+    margin-bottom: 8px;
+  }
+
+  .nav-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    padding: 0 8px;
+    margin-bottom: 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    transition: all 0.15s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: right;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(108,99,255,0.15); color: var(--accent2); }
+  .nav-icon { font-size: 16px; opacity: 0.8; flex-shrink: 0; }
+
+  .main {
+    margin-right: 240px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .page-title { font-size: 15px; font-weight: 500; color: var(--text); }
+
+  .status-pills { display: flex; gap: 8px; align-items: center; }
+
+  .pill {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; font-family: var(--mono);
+    padding: 3px 10px; border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+  }
+
+  .pill.ok { border-color: rgba(52,211,153,0.3); color: var(--green); }
+  .pill.err { border-color: rgba(248,113,113,0.3); color: var(--red); }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ── Content ── */
+  .content { padding: 28px; flex: 1; }
+
+  /* ── Search area ── */
+  .search-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .search-input-wrap { flex: 1; position: relative; }
+
+  .search-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    padding: 12px 48px 12px 16px;
+    outline: none;
+    transition: border-color 0.15s;
+    text-align: right;
+  }
+
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .search-icon {
+    position: absolute;
+    left: 14px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 18px;
+    pointer-events: none;
+  }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 0 22px;
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { opacity: 0.88; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+
+  /* ── Controls row ── */
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .control-group { display: flex; flex-direction: column; gap: 6px; }
+
+  .control-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238888a0' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 10px center;
+    padding-left: 30px;
+  }
+
+  /* BM25 params panel */
+  .bm25-panel {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    display: none;
+  }
+
+  .bm25-panel.visible { display: block; }
+
+  .bm25-row { display: flex; gap: 24px; align-items: center; }
+
+  .slider-group { flex: 1; }
+
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .slider-name { font-size: 13px; color: var(--text); }
+  .slider-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent2);
+    min-width: 32px;
+    text-align: left;
+  }
+
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .slider-desc { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Results ── */
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .results-meta { font-size: 13px; color: var(--muted); }
+  .results-meta span { color: var(--text); font-weight: 500; }
+
+  .model-badge {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(108,99,255,0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(108,99,255,0.25);
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    transition: border-color 0.15s;
+    cursor: pointer;
+  }
+
+  .result-card:hover { border-color: var(--border2); }
+
+  .result-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .result-rank {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+    width: 24px;
+  }
+
+  .result-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--blue);
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  .result-score {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--green);
+    flex-shrink: 0;
+    background: rgba(52,211,153,0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .result-snippet {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+
+  .result-footer {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .result-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(136,136,160,0.6);
+  }
+
+  /* ── Evaluation tab ── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+  }
+
+  .metric-name { font-size: 11px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-val { font-size: 28px; font-weight: 600; margin-top: 6px; }
+  .metric-val.map { color: var(--accent2); }
+  .metric-val.recall { color: var(--green); }
+  .metric-val.pk { color: var(--amber); }
+  .metric-val.ndcg { color: var(--blue); }
+
+  /* ── Dataset tab ── */
+  .dataset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .dataset-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+  }
+
+  .dataset-card.loaded { border-color: rgba(52,211,153,0.3); }
+
+  .ds-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .ds-name { font-size: 15px; font-weight: 600; }
+  .ds-status {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  .ds-status.loaded {
+    background: rgba(52,211,153,0.1);
+    color: var(--green);
+    border: 1px solid rgba(52,211,153,0.25);
+  }
+
+  .ds-status.unloaded {
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .ds-desc { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+
+  .ds-stats { display: flex; gap: 16px; margin-bottom: 16px; }
+  .ds-stat { display: flex; flex-direction: column; gap: 2px; }
+  .ds-stat-val { font-size: 16px; font-weight: 600; font-family: var(--mono); }
+  .ds-stat-label { font-size: 11px; color: var(--muted); }
+
+  /* ── Progress bar ── */
+  .progress-bar {
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .progress-text { font-size: 12px; color: var(--muted); }
+
+  /* ── Empty / loading states ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-text { font-size: 14px; }
+
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-left: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Refinement info */
+  .refine-box {
+    background: rgba(108,99,255,0.08);
+    border: 1px solid rgba(108,99,255,0.2);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  .refine-label { color: var(--accent2); font-weight: 500; margin-bottom: 4px; }
+  .refine-detail { color: var(--muted); }
+
+  /* toggle */
+  .toggle-group {
+    display: flex;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .toggle-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .toggle-btn.active {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+
+  /* Comparison table */
+  .cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cmp-table th {
+    text-align: right;
+    padding: 10px 12px;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  .cmp-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .cmp-table tr:last-child td { border-bottom: none; }
+  .cmp-table tr:hover td { background: var(--surface2); }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-title">IR System</div>
+      <div class="logo-sub">Damascus University · 2026</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">التصفح</div>
+      <button class="nav-item active" onclick="showTab('search')">
+        <span class="nav-icon">🔍</span> البحث
+      </button>
+      <button class="nav-item" onclick="showTab('datasets')">
+        <span class="nav-icon">🗄️</span> مجموعات البيانات
+      </button>
+      <button class="nav-item" onclick="showTab('evaluation')">
+        <span class="nav-icon">📊</span> التقييم
+      </button>
+      <button class="nav-item" onclick="showTab('comparison')">
+        <span class="nav-icon">⚖️</span> مقارنة النماذج
+      </button>
+      <button class="nav-item" onclick="showTab('rag')">
+        <span class="nav-icon">🤖</span> RAG — إجابة ذكية
+      </button>
+    </div>
+
+    <div class="nav-section" style="margin-top: 8px;">
+      <div class="nav-label">الخدمات</div>
+      <div id="service-status" style="padding: 0 8px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted);">
+        جارٍ الفحص...
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="page-title" id="page-title">البحث والاسترجاع</div>
+      <div class="status-pills" id="top-pills"></div>
+    </div>
+
+    <!-- ══════════════ SEARCH TAB ══════════════ -->
+    <div class="content" id="tab-search">
+
+      <div class="search-card">
+        <!-- Search row -->
+        <div class="search-row">
+          <div class="search-input-wrap">
+            <input type="text" class="search-input" id="query-input"
+              placeholder="اكتب استعلامك هنا..."
+              onkeydown="if(event.key==='Enter') doSearch()">
+            <span class="search-icon">🔍</span>
+          </div>
+          <button class="btn" onclick="doSearch()" id="search-btn">بحث</button>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+          <div class="control-group">
+            <div class="control-label">مجموعة البيانات</div>
+            <select class="select" id="dataset-select">
+              <option value="msmarco">MS MARCO</option>
+              <option value="nq">Natural Questions</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label">نموذج التمثيل</div>
+            <select class="select" id="model-select" onchange="onModelChange()">
+              <option value="bm25">BM25 (احتمالي)</option>
+              <option value="tfidf">TF-IDF + Cosine</option>
+              <option value="sbert">Sentence-BERT</option>
+              <option value="word2vec">Word2Vec</option>
+              <option value="hybrid_serial">هجين تسلسلي (BM25 → BERT)</option>
+              <option value="hybrid_parallel">هجين متوازي (BM25 + BERT → Fusion)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label">وضع البحث</div>
+            <div class="toggle-group">
+              <button class="toggle-btn active" id="mode-basic" onclick="setMode('basic')">أساسي</button>
+              <button class="toggle-btn" id="mode-extra" onclick="setMode('extra')">أساسي + إضافي</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BM25 Panel -->
+        <div class="bm25-panel" id="bm25-panel">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            معاملات BM25 — اضبطها لكل استعلام
+          </div>
+          <div class="bm25-row">
+            <div class="slider-group">
+              <div class="slider-header">
+                <span class="slider-name">k₁ — تشبع التكرار</span>
+                <span class="slider-val" id="k1-val">1.50</span>
+              </div>
+              <input type="range" min="0" max="3" step="0.1" value="1.5" id="k1-slider"
+                oninput="document.getElementById('k1-val').textContent = parseFloat(this.value).toFixed(2)">
+              <div class="slider-desc">قيمة أعلى → تأثير أكبر لتكرار المصطلح (تشبع أبطأ)</div>
+            </div>
+            <div class="slider-group">
+              <div class="slider-header">
+                <span class="slider-name">b — تطبيع الطول</span>
+                <span class="slider-val" id="b-val">0.75</span>
+              </div>
+              <input type="range" min="0" max="1" step="0.05" value="0.75" id="b-slider"
+                oninput="document.getElementById('b-val').textContent = parseFloat(this.value).toFixed(2)">
+              <div class="slider-desc">قيمة أعلى → عقوبة أكبر للوثائق الطويلة</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hybrid fusion panel -->
+        <div class="bm25-panel" id="hybrid-panel">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">إعدادات الدمج — Fusion Settings</div>
+          <div class="controls" style="grid-template-columns: 1fr 1fr;">
+            <div class="control-group">
+              <div class="control-label">طريقة الدمج</div>
+              <select class="select" id="fusion-select">
+                <option value="rrf">RRF — Reciprocal Rank Fusion</option>
+                <option value="weighted">Weighted Score Fusion</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <div class="control-label">وزن BM25 (للـ Weighted)</div>
+              <input type="range" min="0" max="1" step="0.1" value="0.5" id="bm25-weight"
+                oninput="document.getElementById('bm25-w-val').textContent = parseFloat(this.value).toFixed(1)">
+              <div style="font-size: 11px; color: var(--accent2); margin-top: 4px;">
+                BM25: <span id="bm25-w-val">0.5</span> | Embedding: <span id="emb-w-val">0.5</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Refinement info box -->
+      <div class="refine-box hidden" id="refine-box">
+        <div class="refine-label">🔧 تحسين الاستعلام</div>
+        <div class="refine-detail" id="refine-detail"></div>
+      </div>
+
+      <!-- Results -->
+      <div id="results-area">
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-text">أدخل استعلاماً وابدأ البحث</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ DATASETS TAB ══════════════ -->
+    <div class="content hidden" id="tab-datasets">
+      <div style="margin-bottom: 20px;">
+        <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">مجموعات البيانات</h2>
+        <p style="color: var(--muted); font-size: 14px;">اختر وحمّل مجموعتي البيانات المطلوبتين للمشروع</p>
+      </div>
+
+      <div class="dataset-grid" id="dataset-grid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- ══════════════ EVALUATION TAB ══════════════ -->
+    <div class="content hidden" id="tab-evaluation">
+      <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">تقييم النظام</h2>
+          <p style="color: var(--muted); font-size: 14px;">MAP · Recall · P@10 · nDCG</p>
+        </div>
+        <button class="btn" onclick="runEvaluation()">تشغيل التقييم</button>
+      </div>
+
+      <div style="margin-bottom: 16px;" id="eval-dataset-bar">
+        <div class="control-group">
+          <div class="control-label">اختر الـ Dataset</div>
+          <select class="select" id="eval-dataset" style="max-width: 200px;">
+            <option value="msmarco">MS MARCO</option>
+            <option value="nq">Natural Questions</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="metrics-grid" id="metrics-grid">
+        <div class="metric-card"><div class="metric-name">MAP</div><div class="metric-val map" id="m-map">—</div></div>
+        <div class="metric-card"><div class="metric-name">Recall</div><div class="metric-val recall" id="m-recall">—</div></div>
+        <div class="metric-card"><div class="metric-name">P@10</div><div class="metric-val pk" id="m-pk">—</div></div>
+        <div class="metric-card"><div class="metric-name">nDCG@10</div><div class="metric-val ndcg" id="m-ndcg">—</div></div>
+      </div>
+
+      <div id="eval-log" style="font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.8;"></div>
+    </div>
+
+    <!-- ══════════════ COMPARISON TAB ══════════════ -->
+    <div class="content hidden" id="tab-comparison">
+      <div style="margin-bottom: 20px;">
+        <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">مقارنة النماذج</h2>
+        <p style="color: var(--muted); font-size: 14px;">قارن أداء TF-IDF · BM25 · Embeddings · Hybrid</p>
+      </div>
+
+      <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="control-group">
+          <div class="control-label">Dataset</div>
+          <select class="select" id="cmp-dataset">
+            <option value="msmarco">MS MARCO</option>
+            <option value="nq">Natural Questions</option>
+          </select>
+        </div>
+        <button class="btn" onclick="runComparison()">مقارنة الكل</button>
+        <div id="cmp-spinner" class="hidden"><div class="spinner"></div></div>
+      </div>
+
+      <div id="cmp-table-wrap">
+        <div class="empty-state">
+          <div class="empty-icon">⚖️</div>
+          <div class="empty-text">اضغط "مقارنة الكل" لمقارنة النماذج</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════ RAG TAB ══════════════ -->
+    <div class="content hidden" id="tab-rag">
+
+      <div style="margin-bottom:20px">
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:4px">RAG — إجابة ذكية بالمصادر</h2>
+        <p style="color:var(--muted);font-size:14px">
+          اسأل سؤالاً — النظام يسترجع الوثائق ثم Claude يُولّد إجابة مدعومة بالمصادر
+        </p>
+      </div>
+
+      <!-- Pipeline diagram -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;overflow-x:auto">
+        <span style="color:var(--muted);white-space:nowrap">Pipeline:</span>
+        <span style="color:var(--text);white-space:nowrap">سؤال المستخدم</span>
+        <span style="color:var(--muted)">→</span>
+        <span style="color:var(--accent2);white-space:nowrap">🔍 Retrieval (BM25+SBERT)</span>
+        <span style="color:var(--muted)">→</span>
+        <span style="color:var(--amber);white-space:nowrap">📝 Context Building</span>
+        <span style="color:var(--muted)">→</span>
+        <span style="color:var(--green);white-space:nowrap">🤖 Claude Generation</span>
+        <span style="color:var(--muted)">→</span>
+        <span style="color:var(--blue);white-space:nowrap">إجابة + مصادر</span>
+      </div>
+
+      <div class="search-card">
+        <!-- Question input -->
+        <div class="search-row">
+          <div class="search-input-wrap">
+            <input type="text" class="search-input" id="rag-question"
+              placeholder="اكتب سؤالك هنا بالعربية أو الإنجليزية..."
+              onkeydown="if(event.key==='Enter') doRAG()">
+            <span class="search-icon">💬</span>
+          </div>
+          <button class="btn" onclick="doRAG()" id="rag-btn">سؤال</button>
+        </div>
+
+        <!-- RAG Controls -->
+        <div class="controls">
+          <div class="control-group">
+            <div class="control-label">مجموعة البيانات</div>
+            <select class="select" id="rag-dataset">
+              <option value="msmarco">MS MARCO</option>
+              <option value="nq">Natural Questions</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <div class="control-label">نموذج الاسترجاع</div>
+            <select class="select" id="rag-model">
+              <option value="hybrid_serial">Hybrid Serial (موصى به)</option>
+              <option value="bm25">BM25 (أسرع)</option>
+              <option value="sbert">Sentence-BERT (دلالي)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <div class="control-label">لغة الإجابة</div>
+            <div class="toggle-group">
+              <button class="toggle-btn active" id="lang-ar" onclick="setLang('arabic')">العربية</button>
+              <button class="toggle-btn" id="lang-en" onclick="setLang('english')">English</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- API Key (optional) -->
+        <div style="margin-top:14px">
+          <div class="control-label" style="margin-bottom:6px">
+            Anthropic API Key
+            <span style="color:var(--muted);font-size:10px;margin-right:6px">(اختياري — بدونه: وضع استخراجي)</span>
+          </div>
+          <input type="password" class="search-input" id="rag-apikey"
+            placeholder="sk-ant-..." style="font-family:var(--mono);font-size:13px">
+        </div>
+      </div>
+
+      <!-- RAG Result area -->
+      <div id="rag-result-area">
+        <div class="empty-state">
+          <div class="empty-icon">🤖</div>
+          <div class="empty-text">اسأل سؤالاً وسيسترجع النظام الوثائق ثم يُولّد إجابة</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+
+// ── Tab navigation ──
+const TABS = {
+  search: 'البحث والاسترجاع',
+  datasets: 'مجموعات البيانات',
+  evaluation: 'تقييم النظام',
+  comparison: 'مقارنة النماذج',
+  rag: 'RAG — Retrieval-Augmented Generation',
+};
+
+function showTab(name) {
+  document.querySelectorAll('.content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  document.getElementById('page-title').textContent = TABS[name];
+  event.currentTarget.classList.add('active');
+  if (name === 'datasets') loadDatasetCards();
+}
+
+// ── Model selection ──
+function onModelChange() {
+  const model = document.getElementById('model-select').value;
+  document.getElementById('bm25-panel').className =
+    'bm25-panel' + (model === 'bm25' ? ' visible' : '');
+  document.getElementById('hybrid-panel').className =
+    'bm25-panel' + (model.startsWith('hybrid') ? ' visible' : '');
+}
+
+function setMode(mode) {
+  document.getElementById('mode-basic').className = 'toggle-btn' + (mode === 'basic' ? ' active' : '');
+  document.getElementById('mode-extra').className = 'toggle-btn' + (mode === 'extra' ? ' active' : '');
+}
+
+// ── BM25 weight sync ──
+document.getElementById('bm25-weight').addEventListener('input', function() {
+  const w = parseFloat(this.value).toFixed(1);
+  const ew = (1 - parseFloat(this.value)).toFixed(1);
+  document.getElementById('bm25-w-val').textContent = w;
+  document.getElementById('emb-w-val').textContent = ew;
+});
+
+// ── Search ──
+async function doSearch() {
+  const query = document.getElementById('query-input').value.trim();
+  if (!query) return;
+
+  const model = document.getElementById('model-select').value;
+  const dataset = document.getElementById('dataset-select').value;
+  const k1 = parseFloat(document.getElementById('k1-slider').value);
+  const b = parseFloat(document.getElementById('b-slider').value);
+  const fusion = document.getElementById('fusion-select').value;
+  const bw = parseFloat(document.getElementById('bm25-weight').value);
+  const useExtra = document.getElementById('mode-extra').classList.contains('active');
+
+  const btn = document.getElementById('search-btn');
+  btn.disabled = true;
+  btn.textContent = 'جارٍ البحث...';
+
+  document.getElementById('results-area').innerHTML =
+    '<div class="empty-state"><div class="spinner" style="width:32px;height:32px;border-width:3px"></div>' +
+    '<div class="empty-text" style="margin-top:16px">جارٍ البحث...</div></div>';
+
+  document.getElementById('refine-box').classList.add('hidden');
+
+  try {
+    const payload = {
+      query, dataset_id: dataset, model, top_k: 10,
+      bm25_k1: k1, bm25_b: b,
+      fusion_method: fusion,
+      fusion_weights: { bm25: bw, embedding: 1 - bw },
+      use_query_refinement: useExtra,
+    };
+
+    const res = await fetch(API + '/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    // Show refinement info
+    if (data.refinement_info && data.refined_query && data.refined_query !== query) {
+      const ri = data.refinement_info;
+      const parts = [];
+      if (ri.spell_corrections && Object.keys(ri.spell_corrections).length)
+        parts.push('تصحيح إملائي: ' + JSON.stringify(ri.spell_corrections));
+      if (ri.added_synonyms && ri.added_synonyms.length)
+        parts.push('مرادفات: ' + ri.added_synonyms.join('، '));
+      if (ri.history_boost_terms && ri.history_boost_terms.length)
+        parts.push('من السجل: ' + ri.history_boost_terms.join('، '));
+
+      document.getElementById('refine-box').classList.remove('hidden');
+      document.getElementById('refine-detail').textContent =
+        `الاستعلام المحسَّن: "${data.refined_query}" | ${parts.join(' | ')}`;
+    }
+
+    renderResults(data);
+
+  } catch(e) {
+    document.getElementById('results-area').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">⚠️</div>
+       <div class="empty-text">فشل الاتصال بالخادم — تأكد من تشغيل الخدمات<br>
+       <small style="color:var(--muted);font-family:var(--mono)">${e.message}</small></div></div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'بحث';
+}
+
+function renderResults(data) {
+  const results = data.results || [];
+  const model = data.model;
+  const area = document.getElementById('results-area');
+
+  if (!results.length) {
+    area.innerHTML = '<div class="empty-state"><div class="empty-icon">🔎</div>' +
+      '<div class="empty-text">لم يُعثر على نتائج</div></div>';
+    return;
+  }
+
+  const MODEL_LABELS = {
+    bm25: 'BM25',
+    tfidf: 'TF-IDF',
+    sbert: 'Sentence-BERT',
+    word2vec: 'Word2Vec',
+    hybrid_serial: 'Hybrid Serial',
+    hybrid_parallel: 'Hybrid Parallel',
+  };
+
+  let html = `<div class="results-header">
+    <div class="results-meta">
+      وُجد <span>${results.length}</span> نتيجة
+      لـ <span>"${escHtml(data.query)}"</span>
+    </div>
+    <div class="model-badge">${MODEL_LABELS[model] || model}</div>
+  </div>`;
+
+  results.forEach(r => {
+    const title = r.title || r.doc_id;
+    const snippet = r.snippet || '';
+    html += `<div class="result-card">
+      <div class="result-top">
+        <div class="result-rank">#${r.rank}</div>
+        <div class="result-title">${escHtml(title.substring(0,120))}</div>
+        <div class="result-score">${r.score.toFixed(4)}</div>
+      </div>
+      <div class="result-snippet">${escHtml(snippet.substring(0,280))}${snippet.length > 280 ? '...' : ''}</div>
+      <div class="result-footer">
+        <span class="result-id">${r.doc_id}</span>
+      </div>
+    </div>`;
+  });
+
+  area.innerHTML = html;
+}
+
+// ── Datasets ──
+const DATASET_INFO = {
+  msmarco: {
+    name: 'MS MARCO Passage Ranking',
+    desc: 'مجموعة 8.8 مليون مقطع نصي من صفحات الويب. المعيار الأكثر استخداماً في IR.',
+    docs: '8.8M', queries: '6,980',
+  },
+  nq: {
+    name: 'Natural Questions (BEIR)',
+    desc: 'مجموعة 2.6 مليون مقطع من Wikipedia. أسئلة حقيقية من محرك بحث Google.',
+    docs: '2.6M', queries: '3,452',
+  },
+};
+
+async function loadDatasetCards() {
+  const grid = document.getElementById('dataset-grid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:13px">جارٍ التحميل...</div>';
+
+  let statuses = {};
+  try {
+    const r = await fetch(API + '/datasets');
+    const d = await r.json();
+    (d.datasets || []).forEach(ds => { statuses[ds.name] = ds; });
+  } catch(e) {}
+
+  let html = '';
+  for (const [key, info] of Object.entries(DATASET_INFO)) {
+    const ds = statuses[key] || {};
+    const isLoaded = ds.is_loaded;
+    const meta = ds.loaded_meta || {};
+    html += `<div class="dataset-card ${isLoaded ? 'loaded' : ''}">
+      <div class="ds-head">
+        <div class="ds-name">${info.name}</div>
+        <div class="ds-status ${isLoaded ? 'loaded' : 'unloaded'}">
+          ${isLoaded ? '✓ محمّلة' : 'غير محمّلة'}
+        </div>
+      </div>
+      <div class="ds-desc">${info.desc}</div>
+      <div class="ds-stats">
+        <div class="ds-stat">
+          <div class="ds-stat-val">${isLoaded ? (meta.docs_indexed || '—').toLocaleString() : info.docs}</div>
+          <div class="ds-stat-label">وثيقة</div>
+        </div>
+        <div class="ds-stat">
+          <div class="ds-stat-val">${isLoaded ? (meta.queries_count || '—') : info.queries}</div>
+          <div class="ds-stat-label">استعلام</div>
+        </div>
+        <div class="ds-stat">
+          <div class="ds-stat-val">${isLoaded ? (meta.qrels_count || '—').toLocaleString() : '—'}</div>
+          <div class="ds-stat-label">qrel</div>
+        </div>
+      </div>
+      ${isLoaded
+        ? `<div style="font-size:12px;color:var(--green)">✓ جاهزة للبحث والتقييم</div>`
+        : `<div>
+            <div class="progress-bar" id="prog-${key}" style="display:none"><div class="progress-fill" id="pfill-${key}" style="width:0%"></div></div>
+            <div class="progress-text" id="ptxt-${key}"></div>
+            <button class="btn" style="margin-top:12px;width:100%" onclick="startLoad('${key}')">
+              تحميل وفهرسة
+            </button>
+           </div>`
+      }
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+async function startLoad(key) {
+  document.getElementById(`prog-${key}`).style.display = 'block';
+  document.getElementById(`ptxt-${key}`).textContent = 'جارٍ الاتصال بالخادم...';
+
+  try {
+    await fetch(API + '/datasets/load/' + key, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataset_name: key, max_docs: 200000, max_queries: 500, build_embeddings: true, embedding_model: 'sbert', batch_size: 500 }),
+    });
+    pollStatus(key);
+  } catch(e) {
+    document.getElementById(`ptxt-${key}`).textContent = 'خطأ: ' + e.message;
+  }
+}
+
+async function pollStatus(key) {
+  const fill = document.getElementById('pfill-' + key);
+  const txt  = document.getElementById('ptxt-' + key);
+
+  const poll = async () => {
+    try {
+      const r = await fetch(API + '/datasets/status/' + key);
+      const d = await r.json();
+      const pct = Math.round((d.progress || 0) * 100);
+      if (fill) fill.style.width = pct + '%';
+      if (txt)  txt.textContent = d.message || '';
+
+      if (d.status === 'done') {
+        setTimeout(() => loadDatasetCards(), 500);
+        return;
+      }
+      if (d.status === 'error') {
+        if (txt) txt.textContent = '❌ ' + d.error?.split('\n')[0];
+        return;
+      }
+      setTimeout(poll, 2000);
+    } catch(e) { setTimeout(poll, 3000); }
+  };
+  poll();
+}
+
+// ── Evaluation ──
+async function runEvaluation() {
+  const dataset = document.getElementById('eval-dataset').value;
+  const log = document.getElementById('eval-log');
+  log.textContent = 'جارٍ جلب الاستعلامات والـ qrels...';
+
+  try {
+    // Get queries
+    const qr = await fetch(`${API}/datasets/queries/${dataset}?limit=50`);
+    const qd = await qr.json();
+    const queries = qd.queries || {};
+
+    // Get qrels
+    const qrelR = await fetch(`${API}/datasets/qrels/${dataset}?limit=5000`).catch(() => null);
+    // fallback: use dataset_loader directly
+    const qrelRes = await fetch(`http://localhost:8007/qrels/${dataset}?limit=5000`);
+    const qrelData = await qrelRes.json();
+    const allQrels = qrelData.qrels || [];
+
+    log.textContent += `\nوُجد ${Object.keys(queries).length} استعلام و ${allQrels.length} qrel.\n`;
+    log.textContent += 'جارٍ تشغيل BM25 على الاستعلامات...\n';
+
+    const evaluations = [];
+    let done = 0;
+
+    for (const [qid, qtext] of Object.entries(queries)) {
+      const res = await fetch(API + '/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: qtext, dataset_id: dataset,
+          model: 'bm25', top_k: 10,
+          use_query_refinement: false,
+        }),
+      });
+      const data = await res.json();
+
+      const retrieved = (data.results || []).map((r, i) => ({
+        doc_id: r.doc_id, score: r.score, rank: i + 1,
+      }));
+
+      const qrels = allQrels.filter(q => q.query_id === qid);
+      evaluations.push({ query_id: qid, retrieved_docs: retrieved, qrels, k: 10 });
+
+      done++;
+      if (done % 5 === 0) log.textContent += `  معالجة ${done}/${Object.keys(queries).length}...\n`;
+    }
+
+    log.textContent += 'جارٍ احتساب المقاييس...\n';
+
+    const evalRes = await fetch('http://localhost:8004/evaluate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evaluations, k: 10 }),
+    });
+    const evalData = await evalRes.json();
+
+    document.getElementById('m-map').textContent    = evalData.map_score?.toFixed(4) || '—';
+    document.getElementById('m-recall').textContent = evalData.mean_recall?.toFixed(4) || '—';
+    document.getElementById('m-pk').textContent     = evalData.mean_precision_at_k?.toFixed(4) || '—';
+    document.getElementById('m-ndcg').textContent   = evalData.mean_ndcg?.toFixed(4) || '—';
+
+    log.textContent += `\n✅ MAP: ${evalData.map_score?.toFixed(4)}\n`;
+    log.textContent += `✅ Recall: ${evalData.mean_recall?.toFixed(4)}\n`;
+    log.textContent += `✅ P@10: ${evalData.mean_precision_at_k?.toFixed(4)}\n`;
+    log.textContent += `✅ nDCG: ${evalData.mean_ndcg?.toFixed(4)}\n`;
+
+  } catch(e) {
+    log.textContent += '\n❌ خطأ: ' + e.message;
+  }
+}
+
+// ── Comparison ──
+const MODELS = ['tfidf', 'bm25', 'sbert', 'hybrid_serial', 'hybrid_parallel'];
+const MODEL_NAMES = {
+  tfidf: 'TF-IDF', bm25: 'BM25', sbert: 'Sentence-BERT',
+  hybrid_serial: 'Hybrid Serial', hybrid_parallel: 'Hybrid Parallel',
+};
+
+async function runComparison() {
+  const dataset = document.getElementById('cmp-dataset').value;
+  document.getElementById('cmp-spinner').classList.remove('hidden');
+  document.getElementById('cmp-table-wrap').innerHTML =
+    '<div style="color:var(--muted);font-size:13px;padding:20px">جارٍ تشغيل المقارنة على جميع النماذج...</div>';
+
+  const results = [];
+
+  for (const model of MODELS) {
+    try {
+      const testQueries = ['information retrieval', 'machine learning', 'neural network', 'search engine', 'text classification'];
+      let totalScore = 0, count = 0;
+
+      for (const q of testQueries) {
+        const r = await fetch(API + '/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, dataset_id: dataset, model, top_k: 10, use_query_refinement: false }),
+        });
+        const d = await r.json();
+        const avgScore = (d.results || []).reduce((s, x) => s + x.score, 0) / Math.max((d.results || []).length, 1);
+        totalScore += avgScore;
+        count++;
+      }
+
+      results.push({ model, avg_score: totalScore / count, retrieved: 10 });
+    } catch(e) {
+      results.push({ model, avg_score: 0, error: e.message });
+    }
+  }
+
+  document.getElementById('cmp-spinner').classList.add('hidden');
+
+  let html = `<table class="cmp-table">
+    <thead><tr>
+      <th>النموذج</th><th>النوع</th><th>متوسط الدرجة</th><th>الحالة</th>
+    </tr></thead><tbody>`;
+
+  const TYPES = {
+    tfidf: 'متجهي / Sparse', bm25: 'احتمالي',
+    sbert: 'دلالي / Dense', word2vec: 'دلالي / Dense',
+    hybrid_serial: 'هجين تسلسلي', hybrid_parallel: 'هجين متوازي',
+  };
+
+  results.sort((a, b) => b.avg_score - a.avg_score);
+  results.forEach((r, i) => {
+    const isFirst = i === 0;
+    html += `<tr>
+      <td style="font-weight:${isFirst?'600':'400'};color:${isFirst?'var(--accent2)':'var(--text)'}">
+        ${isFirst ? '🏆 ' : ''}${MODEL_NAMES[r.model] || r.model}
+      </td>
+      <td style="color:var(--muted)">${TYPES[r.model] || '—'}</td>
+      <td style="font-family:var(--mono)">${r.error ? '—' : r.avg_score.toFixed(6)}</td>
+      <td>${r.error
+        ? `<span style="color:var(--red);font-size:12px">❌ غير متاح</span>`
+        : `<span style="color:var(--green);font-size:12px">✓ يعمل</span>`}
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  html += '<div style="font-size:12px;color:var(--muted);margin-top:12px">* الدرجة محسوبة على 5 استعلامات تجريبية</div>';
+
+  document.getElementById('cmp-table-wrap').innerHTML = html;
+}
+
+// ── Service health ──
+async function checkHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    const d = await r.json();
+
+    // Sidebar
+    const svcDiv = document.getElementById('service-status');
+    const svcs = d.services || {};
+    svcDiv.innerHTML = Object.entries(svcs).map(([k, v]) =>
+      `<div style="display:flex;align-items:center;gap:6px">
+        <div style="width:6px;height:6px;border-radius:50%;background:${v==='ok'?'var(--green)':'var(--red)'}"></div>
+        <span>${k}</span>
+       </div>`
+    ).join('');
+
+    // Topbar
+    const allOk = Object.values(svcs).every(v => v === 'ok');
+    document.getElementById('top-pills').innerHTML =
+      `<div class="pill ${allOk?'ok':'err'}">
+        <div class="dot"></div>${allOk ? 'جميع الخدمات تعمل' : 'بعض الخدمات متوقفة'}
+       </div>`;
+
+  } catch(e) {
+    document.getElementById('top-pills').innerHTML =
+      '<div class="pill err"><div class="dot"></div>الخادم غير متاح</div>';
+    document.getElementById('service-status').innerHTML =
+      '<div style="color:var(--red);font-size:12px">لا يمكن الاتصال بـ localhost:8000</div>';
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
+// ── RAG ──
+let ragLanguage = 'arabic';
+
+function setLang(lang) {
+  ragLanguage = lang;
+  document.getElementById('lang-ar').className = 'toggle-btn' + (lang === 'arabic' ? ' active' : '');
+  document.getElementById('lang-en').className = 'toggle-btn' + (lang === 'english' ? ' active' : '');
+}
+
+async function doRAG() {
+  const question = document.getElementById('rag-question').value.trim();
+  if (!question) return;
+
+  const dataset  = document.getElementById('rag-dataset').value;
+  const model    = document.getElementById('rag-model').value;
+  const apiKey   = document.getElementById('rag-apikey').value.trim();
+  const btn      = document.getElementById('rag-btn');
+  const area     = document.getElementById('rag-result-area');
+
+  btn.disabled   = true;
+  btn.textContent = 'جارٍ المعالجة...';
+
+  area.innerHTML = `
+    <div class="empty-state">
+      <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
+      <div class="empty-text" style="margin-top:16px">
+        جارٍ استرجاع الوثائق ثم توليد الإجابة...
+      </div>
+    </div>`;
+
+  try {
+    const payload = {
+      question, dataset_id: dataset,
+      retrieval_model: model,
+      top_k: 5, max_tokens: 800,
+      language: ragLanguage,
+      api_key: apiKey || null,
+    };
+
+    const r = await fetch(API + '/rag/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || r.statusText);
+    }
+
+    const data = await r.json();
+    renderRAGResult(data);
+
+  } catch(e) {
+    area.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-text">
+          خطأ: ${escHtml(e.message)}<br>
+          <small style="color:var(--muted)">تأكد من تشغيل جميع الخدمات</small>
+        </div>
+      </div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'سؤال';
+}
+
+function renderRAGResult(data) {
+  const area = document.getElementById('rag-result-area');
+  const mode = data.pipeline?.generation_mode || 'unknown';
+  const modeLabel = {
+    claude_api: '🤖 Claude API',
+    extractive_local: '📋 استخراجي (بدون API Key)',
+    extractive_fallback: '📋 استخراجي (Claude API فشل)',
+  }[mode] || mode;
+
+  // Format answer (convert markdown bold/newlines)
+  const formattedAnswer = escHtml(data.answer)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\\n/g, '<br>')
+    .replace(/\n/g, '<br>');
+
+  let html = `
+    <!-- Answer card -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:14px;font-weight:600;color:var(--text)">الإجابة</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="model-badge">${modeLabel}</span>
+          ${data.tokens_used ? `<span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${data.tokens_used} tokens</span>` : ''}
+        </div>
+      </div>
+      <div style="font-size:15px;line-height:1.9;color:var(--text);direction:auto">${formattedAnswer}</div>
+    </div>
+
+    <!-- Sources -->
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <div style="font-size:13px;font-weight:500;color:var(--muted)">
+        الوثائق المُسترجَعة (${data.contexts?.length || 0})
+      </div>
+      <div class="model-badge">${data.retrieval_model}</div>
+    </div>`;
+
+  (data.contexts || []).forEach(ctx => {
+    html += `
+      <div class="result-card" style="margin-bottom:8px">
+        <div class="result-top">
+          <div class="result-rank">[${ctx.rank}]</div>
+          <div class="result-title">${escHtml((ctx.title || ctx.doc_id).substring(0,100))}</div>
+          <div class="result-score">${ctx.score.toFixed(4)}</div>
+        </div>
+        <div class="result-snippet">${escHtml(ctx.snippet.substring(0,250))}...</div>
+        <div class="result-footer">
+          <span class="result-id">${ctx.doc_id}</span>
+        </div>
+      </div>`;
+  });
+
+  // Pipeline log
+  const pipelineEntries = Object.entries(data.pipeline || {})
+    .filter(([k]) => k.startsWith('step_'))
+    .map(([, v]) => `<div>${escHtml(String(v))}</div>`)
+    .join('');
+
+  if (pipelineEntries) {
+    html += `
+      <div style="margin-top:16px;padding:12px 16px;background:var(--surface2);border-radius:var(--radius);font-size:12px;font-family:var(--mono);color:var(--muted);line-height:2">
+        <div style="color:var(--text);margin-bottom:6px;font-size:11px">Pipeline Log</div>
+        ${pipelineEntries}
+      </div>`;
+  }
+
+  area.innerHTML = html;
+}
+
+// Init
+checkHealth();
+setInterval(checkHealth, 15000);
+</script>
+</body>
+</html>
