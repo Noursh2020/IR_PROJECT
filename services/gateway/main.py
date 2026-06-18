@@ -173,7 +173,7 @@ async def search(req: SearchRequest):
             refinement_info = {"error": str(e)}
 
     # ── Step 2: Retrieval ──
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         retrieval_r = await client.post(
             f"{SERVICES['retrieval']}/retrieve",
             json={
@@ -256,7 +256,7 @@ async def index_embeddings(payload: Dict):
 @app.post("/evaluate")
 async def evaluate(payload: Dict):
     """Proxy evaluation requests to the Ranking & Evaluation Service."""
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         r = await client.post(
             f"{SERVICES['ranking_evaluation']}/evaluate/batch",
             json=payload,
@@ -303,7 +303,7 @@ async def rag_ask(payload: Dict):
 
     الميزة الإضافية المطلوبة (5 أفراد).
     """
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         r = await client.post(f"{SERVICES['rag']}/ask", json=payload)
     return r.json()
 

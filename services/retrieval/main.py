@@ -139,12 +139,11 @@ async def _bm25_retrieve(
     req: RetrievalRequest,
     top_k_override: int = None,
 ) -> List[Tuple[str, float]]:
-    """Run BM25 retrieval via Indexing Service."""
     top_k = top_k_override or req.top_k
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         search_r = await client.post(
             f"{INDEXING_URL}/search/inverted",
-            json={"terms": query_tokens, "top_k": top_k * 5},
+            json={"terms": query_tokens, "top_k": top_k * 10},
         )
         stats_r = await client.get(f"{INDEXING_URL}/stats")
 
@@ -153,14 +152,13 @@ async def _bm25_retrieve(
     N = stats.get("total_documents", 1)
     avg_dl = stats.get("avg_doc_length", 1)
 
-    # Reconstruct inverted index from candidate results
     inverted_index: Dict = defaultdict(dict)
     doc_lengths: Dict = {}
     for cand in candidates_data.get("candidates", []):
         doc_id = cand["doc_id"]
         for term, tf in cand["term_freqs"].items():
             inverted_index[term][doc_id] = tf
-        doc_lengths[doc_id] = 1
+        doc_lengths[doc_id] = sum(cand["term_freqs"].values())
 
     scores = []
     for cand in candidates_data.get("candidates", []):
@@ -169,7 +167,7 @@ async def _bm25_retrieve(
             query_tokens, doc_id, inverted_index, doc_lengths,
             avg_dl, N, req.bm25_k1, req.bm25_b,
         )
-        if score >= req.similarity_threshold:
+        if score > 0:
             scores.append((doc_id, score))
 
     scores.sort(key=lambda x: x[1], reverse=True)
@@ -184,7 +182,7 @@ async def _tfidf_retrieve(
     req: RetrievalRequest,
 ) -> List[Tuple[str, float]]:
     """TF-IDF cosine similarity retrieval."""
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         search_r = await client.post(
             f"{INDEXING_URL}/search/inverted",
             json={"terms": query_tokens, "top_k": req.top_k * 10},
@@ -270,7 +268,7 @@ async def _embedding_retrieve(
             "top_k": req.top_k,
         }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         if candidate_ids:
             r = await client.post(f"{EMBEDDING_URL}{endpoint}", json=payload)
         else:

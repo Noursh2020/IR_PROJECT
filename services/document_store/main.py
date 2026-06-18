@@ -39,7 +39,7 @@ def get_batch(req: BatchGetRequest):
     cur = conn.cursor()
     
     cur.execute(
-        "SELECT doc_id, raw_text, title FROM documents WHERE doc_id = ANY(%s)",
+        "SELECT doc_id, raw_text FROM documents WHERE doc_id = ANY(%s)",
         (req.doc_ids,)
     )
     rows = {row[0]: row for row in cur.fetchall()}
@@ -52,7 +52,7 @@ def get_batch(req: BatchGetRequest):
             results.append(DocumentOut(
                 doc_id=rows[doc_id][0],
                 raw_text=rows[doc_id][1] or "",
-                title=rows[doc_id][2] or ""
+                title=""
             ))
         else:
             results.append(DocumentOut(

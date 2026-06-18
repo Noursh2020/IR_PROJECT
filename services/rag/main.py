@@ -337,7 +337,7 @@ async def generate_answer(
         ],
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         r = await client.post(ANTHROPIC_API_URL, headers=headers, json=payload)
 
     if r.status_code != 200:
