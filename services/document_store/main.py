@@ -6,16 +6,21 @@ from psycopg2.extras import execute_values
 
 app = FastAPI(title="Document Store Service", version="1.0.0")
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "ir_db",
-    "user": "postgres",
-    "password": "root"
+DB_NAME_MAP = {
+    "msmarco": "ir_db",
+    "touche": "ir2_db",
 }
 
-def get_connection():
-    return psycopg2.connect(**DB_CONFIG)
+def get_connection(dataset_id: str):
+    db_name = DB_NAME_MAP.get(dataset_id, "ir2_db")
+
+    return psycopg2.connect(
+        host="localhost",
+        port=5432,
+        dbname=db_name,
+        user="postgres",
+        password="root"
+    )
 
 class DocumentOut(BaseModel):
     doc_id: str
@@ -30,12 +35,14 @@ class BatchGetRequest(BaseModel):
 def health():
     return {"status": "ok", "service": "document_store"}
 
+
+
 @app.post("/get/batch", response_model=List[DocumentOut])
 def get_batch(req: BatchGetRequest):
     if not req.doc_ids:
         return []
     
-    conn = get_connection()
+    conn = get_connection(req.dataset_id)
     cur = conn.cursor()
     
     cur.execute(
@@ -65,7 +72,7 @@ def get_batch(req: BatchGetRequest):
 
 @app.get("/get/{dataset_id}/{doc_id}", response_model=DocumentOut)
 def get_single(dataset_id: str, doc_id: str):
-    conn = get_connection()
+    conn = get_connection(dataset_id)
     cur = conn.cursor()
     cur.execute(
         "SELECT doc_id, raw_text, title FROM documents WHERE doc_id = %s",
@@ -82,7 +89,7 @@ def get_single(dataset_id: str, doc_id: str):
 
 @app.get("/stats/{dataset_id}")
 def stats(dataset_id: str):
-    conn = get_connection()
+    conn = get_connection(dataset_id)
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM documents")
     count = cur.fetchone()[0]

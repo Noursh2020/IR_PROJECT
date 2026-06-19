@@ -18,36 +18,40 @@ import httpx
 app = FastAPI(title="Indexing Service", version="1.0.0")
 
 PREPROCESSING_URL = "http://localhost:8001"
-DB_POOL = None
+DB_NAME_MAP = {
+    "msmarco": "ir_db",
+    "touche": "ir2_db",
+}
 
+DB_POOLS: Dict[str, asyncpg.Pool] = {}
 # ══════════════════════════════════════════════
 # DB Connection
 # ══════════════════════════════════════════════
+async def get_pool(dataset_id: str) -> asyncpg.Pool:
+    db_name = DB_NAME_MAP.get(dataset_id, "ir2_db")
 
-async def init_db():
-    global DB_POOL
-    DB_POOL = await asyncpg.create_pool(
-        user="postgres",
-        password="root",
-        database="ir_db",
-        host="localhost",
-        port=5432,
-        min_size=2,
-        max_size=10,
-    )
+    if db_name not in DB_POOLS:
+        DB_POOLS[db_name] = await asyncpg.create_pool(
+            user="postgres",
+            password="root",
+            database=db_name,
+            host="localhost",
+            port=5432,
+            min_size=2,
+            max_size=10,
+        )
 
+    return DB_POOLS[db_name]
 
 @app.on_event("startup")
 async def startup():
-    await init_db()
+    pass
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    if DB_POOL:
-        await DB_POOL.close()
-
-
+    for pool in DB_POOLS.values():
+        await pool.close()
 # ══════════════════════════════════════════════
 # Schemas
 # ══════════════════════════════════════════════
@@ -65,6 +69,7 @@ class IndexRequest(BaseModel):
 
 
 class SearchRequest(BaseModel):
+    dataset_id: str
     terms: List[str]
     top_k: int = 50
 
@@ -124,7 +129,8 @@ async def save_progress(conn, dataset_id: str, last_index: int):
 
 async def get_progress(dataset_id: str) -> int:
     """أرجع آخر index تمت فهرسته (0 إذا لا يوجد)."""
-    async with DB_POOL.acquire() as conn:
+    pool = await get_pool(dataset_id)
+    async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT last_index FROM indexing_progress WHERE dataset_id = $1",
             dataset_id
@@ -168,7 +174,8 @@ async def index_documents(req: IndexRequest):
             processed = res.json()["results"]
 
             # ── Save to DB ──
-            async with DB_POOL.acquire() as conn:
+            pool = await get_pool(req.dataset_id)
+            async with pool.acquire() as conn:
                 async with conn.transaction():
                     for doc, prep in zip(batch, processed):
                         # 1. حفظ الوثيقة
@@ -202,7 +209,8 @@ async def index_documents(req: IndexRequest):
 
 @app.post("/search/inverted")
 async def search_inverted(req: SearchRequest):
-    async with DB_POOL.acquire() as conn:
+    pool = await get_pool(req.dataset_id)
+    async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT p.doc_id,
                    SUM(p.tf) AS total_tf,
@@ -231,17 +239,18 @@ async def search_inverted(req: SearchRequest):
 # Stats Endpoint
 # ══════════════════════════════════════════════
 @app.get("/stats")
-async def get_stats():
+async def get_stats(dataset_id: str):
     import json
     from pathlib import Path
     
-    stats_path = Path("data/msmarco/stats.json")
+    stats_path = Path(f"data/{dataset_id}/stats.json")
     if stats_path.exists():
         with open(stats_path) as f:
             return json.load(f)
     
     # fallback إذا ما في ملف
-    async with DB_POOL.acquire() as conn:
+    pool = await get_pool(dataset_id)
+    async with pool.acquire() as conn:
         doc_count = await conn.fetchval("SELECT COUNT(*) FROM documents")
     
     return {
