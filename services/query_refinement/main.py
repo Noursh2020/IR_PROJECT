@@ -103,7 +103,6 @@ class SuggestionRequest(BaseModel):
 # ──────────────────────────────────────────────
 # Synonym Expansion (Spec §5 - WordNet)
 # ──────────────────────────────────────────────
-
 def get_synonyms(term: str, max_per_term: int = 2) -> List[str]:
     """
     Query Expansion via WordNet synonyms (Project Spec §5).
@@ -111,22 +110,35 @@ def get_synonyms(term: str, max_per_term: int = 2) -> List[str]:
      by covering documents that use different words for the same concept."
 
     Example: query "car" → expands to include "automobile", "vehicle"
+
+    Word Sense Disambiguation (basic):
+        WordNet ranks synsets by frequency of use — synset[0] is
+        statistically the MOST COMMON meaning of the word in English.
+        We use ONLY the first (most common) synset instead of mixing
+        synonyms from ALL possible senses, which previously caused
+        wrong-sense expansions (e.g. "capital" → "majuscule" from the
+        rare "uppercase letter" sense instead of the common "capital
+        city" / "financial capital" sense).
     """
     synonyms: Set[str] = set()
 
-    for syn in wordnet.synsets(term):
-        for lemma in syn.lemmas():
-            candidate = lemma.name().replace("_", " ").lower()
-            # Only add single-word synonyms that differ from original
-            if candidate != term and " " not in candidate:
-                synonyms.add(candidate)
-                if len(synonyms) >= max_per_term:
-                    break
-        if len(synonyms) >= max_per_term:
-            break
+    synsets = wordnet.synsets(term)
+    if not synsets:
+        return []
+
+    # ★ FIX: استخدم فقط أول synset (المعنى الأكثر شيوعاً حسب WordNet)
+    # بدل ما تمشي على كل المعاني الممكنة للكلمة
+    most_common_synset = synsets[0]
+
+    for lemma in most_common_synset.lemmas():
+        candidate = lemma.name().replace("_", " ").lower()
+        # Only add single-word synonyms that differ from original
+        if candidate != term and " " not in candidate:
+            synonyms.add(candidate)
+            if len(synonyms) >= max_per_term:
+                break
 
     return list(synonyms)
-
 
 # ──────────────────────────────────────────────
 # Spell Correction (Spec §5 - Edit Distance)

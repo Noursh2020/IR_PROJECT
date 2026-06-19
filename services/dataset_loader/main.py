@@ -66,10 +66,10 @@ SUPPORTED_DATASETS = {
         "min_docs": 200_000,
         "has_qrels": True,
     },
-    "nq": {
-        "ir_datasets_id": "beir/nq",
-        "display_name": "Natural Questions (BEIR)",
-        "description": "2.6M Wikipedia passages. Real Google search questions with answers.",
+  "touche": {
+        "ir_datasets_id": "beir/webis-touche2020",
+        "display_name": "Webis-Touché 2020 (BEIR — Argument Retrieval)",
+        "description": "382K argumentative documents. BEIR benchmark task for argument retrieval.",
         "doc_field": "text",
         "min_docs": 200_000,
         "has_qrels": True,

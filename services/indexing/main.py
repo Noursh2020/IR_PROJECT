@@ -76,7 +76,7 @@ class SearchRequest(BaseModel):
 async def save_doc(conn, doc: Document, dataset_id: str):
     import json
     await conn.execute("""
-        INSERT INTO documents (doc_id, title, content, metadata)
+        INSERT INTO documents (doc_id, title, raw_text, metadata)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (doc_id) DO NOTHING
     """, doc.doc_id, doc.title or "", doc.text, json.dumps(doc.metadata or {}))
