@@ -9,9 +9,10 @@ Indexing Service
     postings   — term_id (FK), doc_id (FK), tf
 """
 
+# from database_operations import save_doc
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional , Tuple
 import asyncpg
 import httpx
 
@@ -78,44 +79,55 @@ class SearchRequest(BaseModel):
 # DB Helpers
 # ══════════════════════════════════════════════
 
-async def save_doc(conn, doc: Document, dataset_id: str):
+async def save_docs_bulk(conn, docs: List[Document]):
+    """نسخة Bulk من save_doc لكل وثائق الدفعة بنداء واحد."""
     import json
-    await conn.execute("""
+    records = [
+        (d.doc_id, d.title or "", d.text, json.dumps(d.metadata or {}))
+        for d in docs
+    ]
+    await conn.executemany("""
         INSERT INTO documents (doc_id, title, raw_text, metadata)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (doc_id) DO NOTHING
-    """, doc.doc_id, doc.title or "", doc.text, json.dumps(doc.metadata or {}))
+    """, records)
 
 
-async def get_or_create_term_id(conn, term: str) -> int:
+async def get_or_create_term_ids_bulk(conn, terms: set) -> Dict[str, int]:
     """
-    أرجع term_id من جدول terms.
-    إذا المصطلح غير موجود → أضفه وأرجع الـ ID الجديد.
+    نسخة Bulk من get_or_create_term_id:
+    تتعامل مع كل المصطلحات الفريدة بالدفعة بنداءين فقط بدل نداء لكل كلمة.
     """
-    row = await conn.fetchrow(
-        "SELECT id FROM terms WHERE term = $1", term
-    )
-    if row:
-        return row["id"]
+    if not terms:
+        return {}
 
-    row = await conn.fetchrow(
-        "INSERT INTO terms (term) VALUES ($1) ON CONFLICT (term) DO UPDATE SET term = EXCLUDED.term RETURNING id",
-        term
-    )
-    return row["id"]
+    terms_list = list(terms)
+
+    await conn.execute("""
+        INSERT INTO terms (term)
+        SELECT unnest($1::text[])
+        ON CONFLICT (term) DO NOTHING
+    """, terms_list)
+
+    rows = await conn.fetch("""
+        SELECT id, term FROM terms WHERE term = ANY($1::text[])
+    """, terms_list)
+
+    return {row["term"]: row["id"] for row in rows}
 
 
-async def save_postings(conn, term_tf_map: Dict[str, int], doc_id: str):
-    """حفظ كل مصطلحات وثيقة واحدة دفعة واحدة."""
-    for term, tf in term_tf_map.items():
-        term_id = await get_or_create_term_id(conn, term)
-        await conn.execute("""
-            INSERT INTO postings (term_id, doc_id, tf)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (term_id, doc_id)
-            DO UPDATE SET tf = EXCLUDED.tf
-        """, term_id, doc_id, tf)
-
+async def save_postings_bulk(conn, postings_records: List[Tuple[int, str, int]]):
+    """
+    نسخة Bulk من save_postings:
+    تُدخل كل الـ postings بالدفعة بنداء executemany واحد بدل نداء لكل (term, doc).
+    """
+    if not postings_records:
+        return
+    await conn.executemany("""
+        INSERT INTO postings (term_id, doc_id, tf)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (term_id, doc_id) DO UPDATE SET tf = EXCLUDED.tf
+    """, postings_records)
 
 async def save_progress(conn, dataset_id: str, last_index: int):
     """حفظ checkpoint للفهرسة."""
@@ -141,25 +153,19 @@ async def get_progress(dataset_id: str) -> int:
 # ══════════════════════════════════════════════
 # Indexing Endpoint
 # ══════════════════════════════════════════════
-
 @app.post("/index")
 async def index_documents(req: IndexRequest):
     """
-    فهرسة مجموعة وثائق:
-    1. Preprocess النص → tokens
-    2. احسب TF لكل مصطلح
-    3. احفظ في documents + terms + postings
+    ... (نفس الـ docstring الحالي)
     """
-    BATCH = 20
-    start = await get_progress(req.dataset_id)
+    BATCH = 250
     total_indexed = 0
 
     async with httpx.AsyncClient(timeout=300) as client:
-        for i in range(start, len(req.documents), BATCH):
+        for i in range(0, len(req.documents), BATCH):
             batch = req.documents[i:i + BATCH]
             texts = [d.text for d in batch]
 
-            # ── Preprocessing ──
             res = await client.post(
                 f"{PREPROCESSING_URL}/preprocess/batch",
                 json={
@@ -173,28 +179,54 @@ async def index_documents(req: IndexRequest):
 
             processed = res.json()["results"]
 
-            # ── Save to DB ──
+
+            # ── تجميع كل بيانات الدفعة بالذاكرة قبل أي نداء DB ──
+            doc_term_tf: Dict[str, Dict[str, int]] = {}
+            all_terms = set()
+            for doc, prep in zip(batch, processed):
+                tokens = prep["processed_tokens"]
+                tf_map: Dict[str, int] = {}
+                for token in tokens:
+                    tf_map[token] = tf_map.get(token, 0) + 1
+                doc_term_tf[doc.doc_id] = tf_map
+                all_terms.update(tf_map.keys())
+
             pool = await get_pool(req.dataset_id)
             async with pool.acquire() as conn:
                 async with conn.transaction():
-                    for doc, prep in zip(batch, processed):
-                        # 1. حفظ الوثيقة
-                        await save_doc(conn, doc, req.dataset_id)
+                    await save_docs_bulk(conn, batch)
 
-                        # 2. احسب TF
-                        tokens = prep["processed_tokens"]
-                        term_tf: Dict[str, int] = {}
-                        for token in tokens:
-                            term_tf[token] = term_tf.get(token, 0) + 1
+                    term_ids = await get_or_create_term_ids_bulk(conn, all_terms)
 
-                        # 3. حفظ المصطلحات والـ postings
-                        await save_postings(conn, term_tf, doc.doc_id)
-
-                    # 4. حفظ التقدم
-                    await save_progress(conn, req.dataset_id, i + len(batch))
+                    postings_records = []
+                    for doc_id, tf_map in doc_term_tf.items():
+                        for term, tf in tf_map.items():
+                            tid = term_ids.get(term)
+                            if tid is not None:
+                                postings_records.append((tid, doc_id, tf))
+                    await save_postings_bulk(conn, postings_records)
 
             total_indexed += len(batch)
-            print(f"[Indexing] Batch {i}–{i+len(batch)} done ({total_indexed} total)")
+            print(f"[Indexing] Sub-batch {i}-{i+len(batch)} done "
+                  f"({total_indexed} this call, {len(all_terms)} unique terms)")
+            
+            # pool = await get_pool(req.dataset_id)
+            # async with pool.acquire() as conn:
+            #     async with conn.transaction():
+            #         for doc, prep in zip(batch, processed):
+            #             await save_doc(conn, doc, req.dataset_id)
+
+            #             tokens = prep["processed_tokens"]
+            #             term_tf: Dict[str, int] = {}
+            #             for token in tokens:
+            #                 term_tf[token] = term_tf.get(token, 0) + 1
+
+            #             await save_postings(conn, term_tf, doc.doc_id)
+
+            # total_indexed += len(batch)
+
+
+            print(f"[Indexing] Sub-batch {i}–{i+len(batch)} done ({total_indexed} this call)")
 
     return {
         "status": "completed",
@@ -202,9 +234,8 @@ async def index_documents(req: IndexRequest):
         "indexed": total_indexed,
     }
 
-
 # ══════════════════════════════════════════════
-# Search Endpoint (للـ Retrieval Service)
+# Search Endpoint (للـ Retrieval Service)   
 # ══════════════════════════════════════════════
 
 @app.post("/search/inverted")

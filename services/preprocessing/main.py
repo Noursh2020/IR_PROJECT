@@ -146,10 +146,14 @@ def preprocess(req: PreprocessRequest):
         normalize=req.normalize,
     )
 
-
 @app.post("/preprocess/batch", response_model=dict)
 def preprocess_batch(req: dict):
     results = [
-        preprocess_single(t) for t in req["texts"]
+        preprocess_single(
+            t,
+            use_lemmatization=req.get("use_lemmatization", False),
+            remove_stopwords=req.get("remove_stopwords", True),
+        )
+        for t in req["texts"]
     ]
     return {"results": results}

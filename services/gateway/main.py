@@ -1,30 +1,3 @@
-"""
-API Gateway Service
-=====================================================================
-IR Concept (Project Spec - SOA):
-
-    "خدمة الواجهة الأمامية أو الـ API Gateway"
-
-    The Gateway is the single entry point for all client requests.
-    It routes requests to the appropriate internal service,
-    orchestrates multi-step pipelines, and aggregates results.
-
-    SOA Communication Pattern:
-        Client ─► Gateway ─► [Preprocessing | Indexing | Retrieval | Evaluation | Refinement]
-
-    Why a Gateway? (Project Spec - SOA Principles):
-        - Loose Coupling: clients don't know internal service URLs
-        - Single entry point: easier to add auth, rate limiting, logging
-        - Orchestration: multi-step search pipeline in one API call
-        - Load balancing and service discovery ready
-
-    Full Search Pipeline (orchestrated by Gateway):
-        1. Query → Query Refinement Service (spelling, synonyms, history)
-        2. Refined Query → Retrieval Service (BM25 / TF-IDF / Hybrid)
-        3. Results → Ranking & Evaluation Service (scoring + metrics)
-        4. Final ranked results → Client
-"""
-
 from fastapi import FastAPI, HTTPException, Query as QParam
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

@@ -1,46 +1,3 @@
-"""
-Ranking & Evaluation Service
-=====================================================================
-IR Concepts Applied (Lecture 4 - IR Evaluation):
-
-    Precision (Lecture 4):
-        "Measures the proportion of retrieved documents that are relevant."
-        Formula: Precision = |Relevant ∩ Retrieved| / |Retrieved|
-
-    Precision@K (Lecture 4):
-        "Calculates precision for only the top K documents."
-        Formula: P@K = |Relevant in top-K| / K
-
-    Recall (Lecture 4):
-        "Measures how many relevant items were returned against
-         how many relevant items exist in the entire dataset."
-        Formula: Recall = |Relevant ∩ Retrieved| / |All Relevant|
-
-    MAP - Mean Average Precision (Lecture 4):
-        "Mean of the average precision scores for each query."
-        Formula: MAP = (1/Q) × Σ AP@K
-        AP@K = (1/K) × Σ P@k × rel(k)
-
-    nDCG - Normalized Discounted Cumulative Gain (Lecture 4):
-        "MAP assumes binary relevance. In real IR, relevance is often graded."
-        "nDCG rewards relevant items at higher ranks more."
-        Formula: nDCG@K = DCG@K / IDCG@K
-        DCG@K = Σ rel(i) / log2(i+1)
-
-    When to use (Lecture 4):
-        - MAP:  good for binary relevance, commonly used in IR benchmarks
-        - nDCG: best for graded relevance, ranked systems, realistic user behavior
-        - P@K:  useful when only top-K results matter to the user
-
-    Online vs Offline Metrics (Lecture 4):
-        - Offline: measured in isolated environment before deployment (what we implement)
-        - Online:  captured during actual usage (click-through, dwell time, etc.)
-
-SOA Role (Project Spec):
-    خدمة الترتيب والتقييم (Ranking & Evaluation Service)
-    Accepts retrieved results + qrels, computes all evaluation metrics.
-"""
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Tuple
@@ -53,6 +10,8 @@ app = FastAPI(
     description="IR Evaluation: Precision, Recall, P@K, MAP, nDCG",
     version="1.0.0",
 )
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 RETRIEVAL_URL = "http://localhost:8003"
 

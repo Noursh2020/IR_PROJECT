@@ -40,7 +40,8 @@ app = FastAPI(
     description="Loads ir-datasets, preprocesses, and indexes them through all services",
     version="1.0.0",
 )
-
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 # ── Service URLs ──
 GATEWAY_URL        = "http://localhost:8000"
 INDEXING_URL       = "http://localhost:8002"
@@ -58,14 +59,6 @@ loading_status: Dict[str, Dict] = {}
 # Supported Datasets
 # ──────────────────────────────────────────────
 SUPPORTED_DATASETS = {
-    "msmarco": {
-        "ir_datasets_id": "msmarco-passage/dev/small",
-        "display_name": "MS MARCO Passage Ranking",
-        "description": "8.8M passages from web documents. Industry standard for passage retrieval.",
-        "doc_field": "text",
-        "min_docs": 200_000,
-        "has_qrels": True,
-    },
   "touche": {
         "ir_datasets_id": "beir/webis-touche2020",
         "display_name": "Webis-Touché 2020 (BEIR — Argument Retrieval)",
@@ -145,24 +138,17 @@ async def load_and_index_dataset(dataset_name: str, req: LoadRequest):
 
             doc_id = str(doc.doc_id)
 
-            # ★ النص الكامل بلا اقتطاع — يذهب فقط لـ Document Store
-            all_raw_docs.append({
-                "doc_id": doc_id,
-                "raw_text": raw_text,
-                "title": title[:200],
-                "metadata": "{}",
-            })
-
+        
             # نسخة مُقتطَعة (2000 حرف) — تكفي للفهرسة (TF-IDF/BM25) وembedding
             # ملاحظة: هذه النسخة لا تُعرَض للمستخدم أبداً، فقط تُستخدَم
             # لبناء الـ indexes الخفيفة (Lecture 2 - فلسفة الفهرسة)
-            capped_text = raw_text[:2000]
+            capped_text = raw_text
             all_docs.append({
                 "doc_id": doc_id,
                 "text": capped_text,
                 "title": title[:200],
                 "metadata": {},
-            })
+            }) 
             all_doc_ids.append(doc_id)
             all_texts.append(capped_text)
 
@@ -179,18 +165,6 @@ async def load_and_index_dataset(dataset_name: str, req: LoadRequest):
         # ── Step 2.5: ★ تخزين النصوص الأصلية (raw) في Document Store ──
         # هذا منفصل عن الفهرسة — قاعدة بيانات SQLite بـ doc_id كـ Primary Key.
         # سيُستعلَم منها فقط في "آخر خطوة" عند عرض top-K نتائج البحث.
-        status.update({"message": f"Saving {len(all_raw_docs):,} raw documents to Document Store...", "progress": 0.32})
-
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            doc_store_batch = 1000
-            for start in range(0, len(all_raw_docs), doc_store_batch):
-                batch = all_raw_docs[start:start + doc_store_batch]
-                r = await client.post(
-                    f"{DOCUMENT_STORE_URL}/insert/bulk",
-                    json={"dataset_id": dataset_name, "documents": batch},
-                )
-                if r.status_code != 200:
-                    raise Exception(f"Document Store insert failed at batch {start}: {r.text[:200]}")
 
         status.update({"message": f"Loaded {len(all_docs):,} docs. Starting indexing...", "progress": 0.40})
 
@@ -203,15 +177,17 @@ async def load_and_index_dataset(dataset_name: str, req: LoadRequest):
             for start in range(0, len(all_docs), batch_size):
                 batch = all_docs[start:start + batch_size]
 
-                r = await client.post(
-                    f"{INDEXING_URL}/index",
-                    json={"dataset_id": dataset_name, "documents": batch},
-                )
+                r = await client.post(f"{INDEXING_URL}/index", json={"dataset_id": dataset_name, "documents": batch})
 
                 if r.status_code != 200:
-                    raise Exception(f"Indexing failed at batch {start}: {r.text[:200]}")
+                  raise Exception(f"Indexing failed at batch {start}: {r.text[:200]}")
 
-                total_indexed += len(batch)
+                result = r.json()
+                actual_indexed = result.get("indexed", 0)
+                if actual_indexed != len(batch):
+                 raise Exception(f"⚠️ توقّعنا فهرسة {len(batch)} وثيقة لكن فعلياً فُهرس {actual_indexed} فقط عند batch {start}")
+                total_indexed += actual_indexed
+                
                 progress = 0.40 + (total_indexed / len(all_docs)) * 0.30
                 status.update({
                     "docs_indexed": total_indexed,

@@ -43,12 +43,13 @@ import psycopg2
 DB_CONFIG = {
     "host": "localhost",
     "port": 5432,
-    "dbname": "ir_db",
+    "dbname": "ir2_db",        # ← تعديل 1
     "user": "postgres",
     "password": "root",
 }
 
-DATASET_ID = "msmarco"
+DATASET_ID = "touche"          # ← تعديل 2
+
 SBERT_MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 
@@ -126,13 +127,14 @@ def fetch_next_batch(conn, last_doc_id, batch_size):
 
 def main():
     log("=" * 60)
-    log("SBERT Full-Corpus Encoding — MS MARCO (8.8M docs) — v2 FIXED")
+    log("SBERT Full-Corpus Encoding FIXED")
     log("=" * 60)
 
     log(f"Loading SBERT model '{SBERT_MODEL_NAME}' (from local cache)...")
     t0 = time.time()
     from sentence_transformers import SentenceTransformer
     model = SentenceTransformer(SBERT_MODEL_NAME)
+    model.max_seq_length = 256   
     log(f"Model loaded in {time.time()-t0:.1f}s")
 
     conn = psycopg2.connect(**DB_CONFIG)

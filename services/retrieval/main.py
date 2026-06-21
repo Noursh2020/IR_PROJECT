@@ -1,36 +1,3 @@
-"""
-Retrieval Service — Updated with Real Embedding
-=====================================================================
-IR Concepts Applied:
-
-    VSM / TF-IDF with Cosine Similarity (Lecture 2, 3):
-        Sparse vector model. Similarity = cosine angle between vectors.
-        Formula: cos(q, d) = (q · d) / (|q| × |d|)
-
-    BM25 - Best Matching 25 (Lecture 3):
-        Probabilistic model with TF saturation (k1) and length norm (b).
-        Formula: Σ IDF(t) × TF_norm(t,d)
-
-    Embedding / Semantic Retrieval (Project Spec + Lecture 3):
-        Dense SBERT or Word2Vec vectors → FAISS nearest-neighbor search.
-        "Neural models capture semantic meaning and context."
-        Captures synonymy: "car" ≈ "automobile" in vector space.
-
-    Hybrid Serial — Cascade (Lecture 3):
-        Stage 1: BM25 → top-1000 candidates (fast keyword filter)
-        Stage 2: Embedding re-ranks the 1000 candidates (semantic precision)
-        "Use a lightweight model to filter, then a complex model to re-rank."
-
-    Hybrid Parallel (Lecture 3):
-        BM25 list + Embedding list run simultaneously → Fusion.
-        Fusion Methods:
-          - RRF:      score(d) = Σ 1/(k + rank(d))
-          - Weighted: score(d) = α × BM25_norm + (1-α) × Emb_norm
-
-SOA Role (Project Spec):
-    خدمة البحث والاسترجاع — تستدعي Embedding Service و Indexing Service.
-"""
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Tuple
@@ -143,9 +110,12 @@ async def _bm25_retrieve(
     async with httpx.AsyncClient(timeout=300.0) as client:
         search_r = await client.post(
             f"{INDEXING_URL}/search/inverted",
-            json={"terms": query_tokens, "top_k": top_k * 10},
+            json={"dataset_id": req.dataset_id, "terms": query_tokens, "top_k": top_k * 10},
         )
-        stats_r = await client.get(f"{INDEXING_URL}/stats")
+        stats_r = await client.get(
+            f"{INDEXING_URL}/stats", params={"dataset_id": req.dataset_id}
+        )
+
 
     candidates_data = search_r.json()
     stats = stats_r.json()
@@ -185,9 +155,11 @@ async def _tfidf_retrieve(
     async with httpx.AsyncClient(timeout=300.0) as client:
         search_r = await client.post(
             f"{INDEXING_URL}/search/inverted",
-            json={"terms": query_tokens, "top_k": req.top_k * 10},
+            json={"dataset_id": req.dataset_id, "terms": query_tokens, "top_k": req.top_k * 10},
         )
-        stats_r = await client.get(f"{INDEXING_URL}/stats")
+        stats_r = await client.get(
+            f"{INDEXING_URL}/stats", params={"dataset_id": req.dataset_id}
+        )
 
     candidates_data = search_r.json()
     N = stats_r.json().get("total_documents", 1)
@@ -455,20 +427,6 @@ async def retrieve(req: RetrievalRequest):
             f"Unknown model '{req.model}'. "
             "Use: tfidf, bm25, sbert, word2vec, hybrid_serial, hybrid_parallel"
         )
-
-    # ══════════════════════════════════════════════════════════
-    # ★ آخر خطوة فقط: استرجاع النصوص الأصلية (raw) من Document Store
-    # ══════════════════════════════════════════════════════════
-    # حتى هذه النقطة، raw كان عبارة عن (doc_id, score) فقط — جاءت
-    # من inverted index / FAISS vectors (بنى بيانات خفيفة بدون نص).
-    #
-    # الآن، ولـ top_k النتائج فقط، نستعلم دفعة واحدة (batch query)
-    # عن النص الأصلي الكامل من Document Store (SQLite، doc_id كـ
-    # Primary Key → استرجاع سريع O(log n)).
-    #
-    # هذا يطابق ملاحظة الأستاذ: "الـ raw text بدو يكون بداتا بيز
-    # بلحظة الكويري" — استعلام واحد فقط، على أعلى top_k نتيجة،
-    # في آخر خطوة، بدل تحميل النصوص الكاملة أثناء البحث نفسه.
     top_results = raw[:req.top_k]
     doc_ids_to_fetch = [doc_id for doc_id, _ in top_results]
 

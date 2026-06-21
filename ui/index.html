@@ -38,6 +38,18 @@
     line-height: 1.6;
   }
 
+  .chat-thread { display: flex; flex-direction: column; gap: 16px; max-height: 600px; overflow-y: auto; padding: 4px; }
+.chat-bubble-user {
+  align-self: flex-end; max-width: 75%;
+  background: var(--accent); color: #fff;
+  padding: 10px 16px; border-radius: 14px 14px 4px 14px; font-size: 14px;
+}
+.chat-bubble-assistant {
+  align-self: flex-start; max-width: 85%;
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 14px 18px; border-radius: 14px 14px 14px 4px;
+}
+
   /* ── Layout ── */
   .layout { display: flex; min-height: 100vh; }
 
@@ -613,25 +625,24 @@
 
         <!-- Controls -->
         <div class="controls">
-          <div class="control-group">
-            <div class="control-label">مجموعة البيانات</div>
-            <select class="select" id="dataset-select">
-              <option value="msmarco">MS MARCO</option>
-              <option value="nq">Natural Questions</option>
-            </select>
-          </div>
+        <div class="control-group">
+  <label class="control-label" for="dataset-select">مجموعة البيانات</label>
+  <select class="select" id="dataset-select" title="اختر مجموعة البيانات">
+    <option value="touche">Webis-Touché 2020</option>
+  </select>
+</div>
 
           <div class="control-group">
-            <div class="control-label">نموذج التمثيل</div>
-            <select class="select" id="model-select" onchange="onModelChange()">
-              <option value="bm25">BM25 (احتمالي)</option>
-              <option value="tfidf">TF-IDF + Cosine</option>
-              <option value="sbert">Sentence-BERT</option>
-              <option value="word2vec">Word2Vec</option>
-              <option value="hybrid_serial">هجين تسلسلي (BM25 → BERT)</option>
-              <option value="hybrid_parallel">هجين متوازي (BM25 + BERT → Fusion)</option>
-            </select>
-          </div>
+  <label class="control-label" for="model-select">نموذج التمثيل</label>
+  <select class="select" id="model-select" onchange="onModelChange()" title="اختر نموذج التمثيل">
+    <option value="bm25">BM25 (احتمالي)</option>
+    <option value="tfidf">TF-IDF + Cosine</option>
+    <option value="sbert">Sentence-BERT</option>
+    <option value="word2vec">Word2Vec</option>
+    <option value="hybrid_serial">هجين تسلسلي (BM25 ← BERT)</option>
+    <option value="hybrid_parallel">هجين متوازي (BM25 + BERT → Fusion)</option>
+  </select>
+</div>
 
           <div class="control-group">
             <div class="control-label">وضع البحث</div>
@@ -733,8 +744,7 @@
         <div class="control-group">
           <div class="control-label">اختر الـ Dataset</div>
           <select class="select" id="eval-dataset" style="max-width: 200px;">
-            <option value="msmarco">MS MARCO</option>
-            <option value="nq">Natural Questions</option>
+            <option value="touche">Webis-Touché 2020</option>
           </select>
         </div>
       </div>
@@ -760,8 +770,7 @@
         <div class="control-group">
           <div class="control-label">Dataset</div>
           <select class="select" id="cmp-dataset">
-            <option value="msmarco">MS MARCO</option>
-            <option value="nq">Natural Questions</option>
+            <option value="touche">Webis-Touché 2020</option>
           </select>
         </div>
         <button class="btn" onclick="runComparison()">مقارنة الكل</button>
@@ -818,8 +827,7 @@
           <div class="control-group">
             <div class="control-label">مجموعة البيانات</div>
             <select class="select" id="rag-dataset">
-              <option value="msmarco">MS MARCO</option>
-              <option value="nq">Natural Questions</option>
+              <option value="touche">Webis-Touché 2020</option>
             </select>
           </div>
           <div class="control-group">
@@ -851,13 +859,12 @@
       </div>
 
       <!-- RAG Result area -->
-      <div id="rag-result-area">
-        <div class="empty-state">
-          <div class="empty-icon">🤖</div>
-          <div class="empty-text">اسأل سؤالاً وسيسترجع النظام الوثائق ثم يُولّد إجابة</div>
-        </div>
-      </div>
-    </div>
+<div id="rag-result-area" class="chat-thread">
+  <div class="empty-state" id="rag-empty-state">
+    <div class="empty-icon">🤖</div>
+    <div class="empty-text">اسأل سؤالاً وسيسترجع النظام الوثائق ثم يُولّد إجابة</div>
+  </div>
+</div>
 
   </main>
 </div>
@@ -930,13 +937,15 @@ async function doSearch() {
 
   try {
     const payload = {
-      query, dataset_id: dataset, model, top_k: 10,
-      bm25_k1: k1, bm25_b: b,
-      fusion_method: fusion,
-      fusion_weights: { bm25: bw, embedding: 1 - bw },
-      use_query_refinement: useExtra,
-    };
-
+  query, dataset_id: dataset, model, top_k: 10,
+  bm25_k1: k1, bm25_b: b,
+  fusion_method: fusion,
+  fusion_weights: { bm25: bw, embedding: 1 - bw },
+  use_query_refinement: useExtra,
+  user_id: localStorage.getItem('ir_user_id') ||
+           (() => { const id = 'user_' + Math.random().toString(36).slice(2);
+                     localStorage.setItem('ir_user_id', id); return id; })(),
+};
     const res = await fetch(API + '/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1023,15 +1032,10 @@ function renderResults(data) {
 
 // ── Datasets ──
 const DATASET_INFO = {
-  msmarco: {
-    name: 'MS MARCO Passage Ranking',
-    desc: 'مجموعة 8.8 مليون مقطع نصي من صفحات الويب. المعيار الأكثر استخداماً في IR.',
-    docs: '8.8M', queries: '6,980',
-  },
-  nq: {
-    name: 'Natural Questions (BEIR)',
-    desc: 'مجموعة 2.6 مليون مقطع من Wikipedia. أسئلة حقيقية من محرك بحث Google.',
-    docs: '2.6M', queries: '3,452',
+ touche: {
+    name: 'Webis-Touché 2020 (BEIR)',
+    desc: 'مجموعة 382,545 وثيقة حجاجية (Argument Retrieval) من BEIR benchmark.',
+    docs: '382,545', queries: '49',
   },
 };
 
@@ -1324,22 +1328,27 @@ async function doRAG() {
   const question = document.getElementById('rag-question').value.trim();
   if (!question) return;
 
+  document.getElementById('rag-empty-state')?.remove();
+
+  const area = document.getElementById('rag-result-area');
+  area.insertAdjacentHTML('beforeend', `
+    <div class="chat-bubble-user">${escHtml(question)}</div>
+  `);
+  document.getElementById('rag-question').value = '';   // ★ تفريغ الحقل فوراً، كأي شات
+  area.scrollTop = area.scrollHeight;
+
+
   const dataset  = document.getElementById('rag-dataset').value;
   const model    = document.getElementById('rag-model').value;
   const apiKey   = document.getElementById('rag-apikey').value.trim();
   const btn      = document.getElementById('rag-btn');
-  const area     = document.getElementById('rag-result-area');
 
-  btn.disabled   = true;
-  btn.textContent = 'جارٍ المعالجة...';
-
-  area.innerHTML = `
-    <div class="empty-state">
-      <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
-      <div class="empty-text" style="margin-top:16px">
-        جارٍ استرجاع الوثائق ثم توليد الإجابة...
-      </div>
-    </div>`;
+  const thinkingId = 'thinking-' + Date.now();
+  area.insertAdjacentHTML('beforeend', `
+    <div class="chat-bubble-assistant" id="${thinkingId}">
+      <div class="spinner"></div> جارٍ التفكير...
+    </div>`);
+  area.scrollTop = area.scrollHeight;
 
   try {
     const payload = {
@@ -1360,19 +1369,13 @@ async function doRAG() {
       const err = await r.json().catch(() => ({ detail: r.statusText }));
       throw new Error(err.detail || r.statusText);
     }
-
-    const data = await r.json();
+const data = await r.json();
+    document.getElementById(thinkingId).remove();
     renderRAGResult(data);
 
   } catch(e) {
-    area.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">⚠️</div>
-        <div class="empty-text">
-          خطأ: ${escHtml(e.message)}<br>
-          <small style="color:var(--muted)">تأكد من تشغيل جميع الخدمات</small>
-        </div>
-      </div>`;
+    document.getElementById(thinkingId).remove();
+    area.insertAdjacentHTML('beforeend', `<div class="chat-bubble-assistant">⚠️ خطأ: ${escHtml(e.message)}</div>`);
   }
 
   btn.disabled = false;
@@ -1444,7 +1447,8 @@ function renderRAGResult(data) {
       </div>`;
   }
 
-  area.innerHTML = html;
+ area.insertAdjacentHTML('beforeend', `<div class="chat-bubble-assistant">${html}</div>`);
+area.scrollTop = area.scrollHeight;
 }
 
 // Init

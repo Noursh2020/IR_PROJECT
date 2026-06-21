@@ -7,6 +7,7 @@ ENV/
 # Python cache
 pycache/
 *.py[cod]
+*$py.class
 
 # Environment variables
 .env
@@ -29,3 +30,20 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+
+# ==========================================
+# Project Specific (Large Files & Models)
+# ==========================================
+
+# Data directory (containing big json files)
+data/
+
+# Indexes and Embeddings (Faiss, pkl, npy models)
+indexes/
+*.index
+*.npy
+*.pkl
+*.model
+
+# Charts and Generated Images (Optional)
+*.png

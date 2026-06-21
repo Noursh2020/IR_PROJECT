@@ -1,17 +1,24 @@
+"""
+test_preprocess_speed.py
+يقيس سرعة Preprocessing Service وحدها فقط — بدون أي تأثير على
+الفهرسة الجارية بالخلفية (قراءة فقط من القاعدة، نداء API منفصل).
+"""
 import time
-from sentence_transformers import SentenceTransformer
+import httpx
+import psycopg2
 
-print("Loading model...")
+conn = psycopg2.connect(host="localhost", port=5432, dbname="ir2_db",
+                         user="postgres", password="root")
+cur = conn.cursor()
+cur.execute("SELECT raw_text FROM documents ORDER BY doc_id LIMIT 250")
+texts = [r[0] for r in cur.fetchall()]
+cur.close(); conn.close()
+
+print(f"عدد النصوص: {len(texts)} | متوسط الطول: {sum(len(t) for t in texts)/len(texts):.0f} حرف")
+
 t0 = time.time()
-model = SentenceTransformer("all-MiniLM-L6-v2")
-print(f"Model loaded in {time.time()-t0:.1f}s")
-
-# جيبي 2000 جملة حقيقية (مثلاً من جدول documents عندك أو placeholder نصوص)
-texts = ["This is a sample passage about machine learning and information retrieval systems."] * 2000
-
-t0 = time.time()
-vectors = model.encode(texts, batch_size=32, show_progress_bar=True)
+r = httpx.post("http://localhost:8001/preprocess/batch",
+                json={"texts": texts, "use_lemmatization": True, "remove_stopwords": True},
+                timeout=120)
 elapsed = time.time() - t0
-print(f"\nEncoded {len(texts)} docs in {elapsed:.1f}s")
-print(f"Rate: {len(texts)/elapsed:.1f} docs/sec")
-print(f"Estimated time for 8.8M docs: {8_800_000/(len(texts)/elapsed)/3600:.2f} hours")
+print(f"الزمن: {elapsed:.2f} ثانية | المعدّل: {len(texts)/elapsed:.1f} نص/ثانية")

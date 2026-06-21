@@ -1,52 +1,3 @@
-"""
-Embedding Service
-=====================================================================
-IR Concepts Applied (Lecture 2 & 3 + Project Spec):
-
-    Dense Embedding / Neural Representation (Lecture 3):
-        Unlike TF-IDF (sparse, keyword-based), embeddings map text to a
-        dense vector in a continuous semantic space.
-        Lecture: "Neural models capture semantic meaning and context,
-                  improving recall and precision."
-        Example:  "car" and "automobile" → close vectors (high cosine sim)
-                  even though they share no common tokens.
-
-    Sentence Transformers (Project Spec - Embedding):
-        Pre-trained BERT-based model that encodes full sentences/passages.
-        Model used: all-MiniLM-L6-v2
-          - 384-dimensional vectors
-          - Fast inference, good quality for retrieval
-          - Trained with contrastive learning on (query, passage) pairs
-
-    Word2Vec (Project Spec - Word2Vec):
-        Older word-level embedding.
-        We represent a document as the mean of its word vectors.
-        Trained on the indexed corpus using gensim.
-        Captures word-level semantics but misses sentence structure.
-
-    Vector Index - FAISS (Lecture 2 - Index Types):
-        Lecture: "Vector Index stores embedding vectors and supports
-                  semantic similarity search."
-        FAISS (Facebook AI Similarity Search):
-          - Stores all document vectors as a matrix
-          - Efficient Approximate Nearest Neighbor (ANN) search
-          - Much faster than brute-force cosine over all documents
-        Index type used: IndexFlatIP (exact inner product / cosine on normalized vecs)
-
-    Cosine Similarity for Embeddings (Lecture 3):
-        After L2-normalizing vectors:
-          cosine(q, d) = q · d  (dot product = cosine on unit vectors)
-        Lecture: "Cosine similarity disregards magnitude; considers only angle."
-
-    Hybrid Role (Lecture 3 - Serial & Parallel):
-        Serial:   BM25 top-1000 → Embedding re-ranks (slow model on small set)
-        Parallel: BM25 list + Embedding list → RRF / Weighted fusion
-
-SOA Role (Project Spec):
-    خدمة مستقلة للـ Embedding — تُبنى وتُخزّن الفهارس المتجهية،
-    وتُجيب على استعلامات البحث الدلالي.
-"""
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Tuple
@@ -137,6 +88,12 @@ class VectorSearchResponse(BaseModel):
     model: str
     results: List[VectorSearchResult]
 
+class RerankRequest(BaseModel):
+    query: str
+    candidate_ids: List[str]
+    dataset_id: str
+    model: str = "sbert"
+    top_k: int = 10
 
 # ──────────────────────────────────────────────
 # Encoding Functions
@@ -199,6 +156,21 @@ def encode_word2vec(texts: List[str], dataset_id: str = "") -> np.ndarray:
 
     return np.array(vectors, dtype=np.float32)
 
+# ......................
+def load_word2vec_model(dataset_id: str) -> bool:
+    """
+    تحميل نموذج gensim Word2Vec المُدرَّب خارجياً (بسكريبت مستقل)
+    من القرص إلى الذاكرة — هذا منفصل عن FAISS index ولا يُحمَّل تلقائياً.
+    """
+    global _w2v_model
+    from gensim.models import Word2Vec
+    path = INDEX_DIR / dataset_id / "word2vec" / "word2vec.model"
+    if not path.exists():
+        return False
+    _w2v_model = Word2Vec.load(str(path))
+    print(f"[Embedding] Word2Vec model loaded from disk: {path}")
+    return True
+
 
 # ──────────────────────────────────────────────
 # FAISS Index Management (Lecture 2 - Vector Index)
@@ -254,15 +226,8 @@ def search_faiss(
     top_k: int,
     candidate_ids: Optional[List[str]] = None,
 ) -> List[Tuple[str, float]]:
-    """
-    FAISS nearest-neighbor search.
-    Returns top_k (doc_id, score) pairs sorted by cosine similarity.
-
-    If candidate_ids is given (serial hybrid), search only among those docs.
-    """
     store_key = f"{dataset_id}_{model_name}"
 
-    # Load from memory or disk
     if store_key not in _faiss_sbert:
         index, doc_ids = load_faiss_index(dataset_id, model_name)
         if index is None:
@@ -276,14 +241,16 @@ def search_faiss(
         return []
 
     query_vec = query_vec.reshape(1, -1).astype(np.float32)
-    k = min(top_k, index.ntotal)
+    doc_id_set = set(candidate_ids) if candidate_ids else None
 
-    # FAISS search: returns (scores, indices)
+    # ★ الإصلاح: عند وجود فلتر candidate_ids، نبحث بكل القاعدة (k=ntotal)
+    # لضمان عدم تفويت أي مرشّح. التكلفة الإضافية ضئيلة لأن IndexFlatIP
+    # exact search يحسب كل المسافات أساساً بغض النظر عن k.
+    k = index.ntotal if doc_id_set else min(top_k, index.ntotal)
+
     scores, indices = index.search(query_vec, k)
 
     results = []
-    doc_id_set = set(candidate_ids) if candidate_ids else None
-
     for score, idx in zip(scores[0], indices[0]):
         if idx < 0 or idx >= len(doc_ids):
             continue
@@ -291,9 +258,10 @@ def search_faiss(
         if doc_id_set and doc_id not in doc_id_set:
             continue
         results.append((doc_id, float(score)))
+        if len(results) >= top_k:
+            break
 
     return results
-
 
 # ──────────────────────────────────────────────
 # API Endpoints
@@ -419,32 +387,19 @@ async def vector_search(req: VectorSearchRequest):
 
 
 @app.post("/search/rerank")
-async def rerank_with_embedding(
-    query: str,
-    candidate_ids: List[str],
-    dataset_id: str,
-    model: str = "sbert",
-    top_k: int = 10,
-):
+async def rerank_with_embedding(req: RerankRequest):
     """
-    Serial Hybrid — Stage 2 (Lecture 3):
-    Given a list of candidate doc IDs (from BM25),
-    re-rank them using embedding cosine similarity.
-
-    Lecture: "Use a lightweight model to filter candidates,
-              then apply a complex model to re-rank."
+    Serial Hybrid — Stage 2: إعادة ترتيب مرشحي BM25 بـ cosine similarity.
     """
-    if model == "sbert":
-        query_vec = encode_sbert([query])[0]
+    if req.model == "sbert":
+        query_vec = encode_sbert([req.query])[0]
     else:
-        query_vec = encode_word2vec([query])[0]
+        query_vec = encode_word2vec([req.query])[0]
 
-    # Search within candidates only
     raw_results = search_faiss(
-        query_vec, dataset_id, model, top_k,
-        candidate_ids=candidate_ids,
+        query_vec, req.dataset_id, req.model, req.top_k,
+        candidate_ids=req.candidate_ids,
     )
-
     return [
         {"doc_id": doc_id, "score": round(score, 6), "rank": rank}
         for rank, (doc_id, score) in enumerate(raw_results, start=1)
@@ -479,16 +434,25 @@ async def train_word2vec_internal(texts: List[str]):
     )
     print(f"[Embedding] Word2Vec trained. Vocab: {len(_w2v_model.wv)} words.")
 
-
 @app.post("/load/{dataset_id}")
 def load_indexes(dataset_id: str, model: str = "sbert"):
-    """Load saved FAISS index from disk into memory."""
+    """Load saved FAISS index (و نموذج Word2Vec إن لزم) من القرص للذاكرة."""
     index, doc_ids = load_faiss_index(dataset_id, model)
     if index is None:
         raise HTTPException(404, f"No saved embedding index for dataset='{dataset_id}' model='{model}'")
     store_key = f"{dataset_id}_{model}"
     _faiss_sbert[store_key] = {"index": index, "doc_ids": doc_ids}
-    return {"loaded": True, "dataset_id": dataset_id, "model": model, "vectors": index.ntotal}
+
+    w2v_loaded = None
+    if model == "word2vec":
+        w2v_loaded = load_word2vec_model(dataset_id)
+        if not w2v_loaded:
+            raise HTTPException(404, f"Word2Vec model file not found for '{dataset_id}'")
+
+    return {
+        "loaded": True, "dataset_id": dataset_id, "model": model,
+        "vectors": index.ntotal, "word2vec_model_loaded": w2v_loaded,
+    }
 
 
 if __name__ == "__main__":

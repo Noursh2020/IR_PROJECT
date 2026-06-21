@@ -1,71 +1,3 @@
-"""
-RAG Service — Retrieval-Augmented Generation
-======================================================================
-ما هو RAG؟ (الميزة الإضافية المطلوبة)
-----------------------------------------------------------------------
-RAG = Retrieval-Augmented Generation
-
-    الفكرة الأساسية:
-        بدلاً من أن يجيب نموذج اللغة (LLM) من ذاكرته فقط،
-        نُغذّيه أولاً بالوثائق الأكثر صلة بالسؤال، فيُجيب
-        بناءً على مصادر حقيقية من مجموعة البيانات.
-
-    Pipeline RAG الكامل:
-        ┌─────────────┐
-        │  سؤال المستخدم │
-        └──────┬──────┘
-               │
-               ▼
-        ┌─────────────────────────────┐
-        │  1. Retrieval (الاسترجاع)   │  ← BM25 + Embedding (FAISS)
-        │     أفضل K وثيقة ذات صلة    │
-        └──────┬──────────────────────┘
-               │
-               ▼
-        ┌─────────────────────────────┐
-        │  2. Context Building        │  ← دمج الوثائق في سياق
-        │     بناء الـ Prompt         │
-        └──────┬──────────────────────┘
-               │
-               ▼
-        ┌─────────────────────────────┐
-        │  3. Generation (التوليد)    │  ← Claude API (claude-sonnet)
-        │     إجابة مدعومة بالمصادر  │
-        └─────────────────────────────┘
-
-    لماذا RAG أفضل من LLM وحده؟
-        - LLM وحده: يُجيب من ذاكرته → قد يهلوس (Hallucination)
-        - RAG: يُجيب من وثائق حقيقية → إجابات موثوقة وقابلة للتحقق
-        - يُوثّق المصادر التي استند إليها
-
-    لماذا RAG أفضل من IR وحده؟
-        - IR وحده: يُعيد وثائق خام → المستخدم يقرأ ويستخلص
-        - RAG: يُولّد إجابة مباشرة مدعومة بالمصادر
-
-    الفرق قبل/بعد RAG في التقييم:
-        قبل: نظام استرجاع فقط — يُرتّب الوثائق
-        بعد: نظام استرجاع + توليد — يُجيب على الأسئلة
-
-    Chunk Strategy (تقسيم الوثائق):
-        الوثائق الطويلة تُقسَّم إلى chunks صغيرة
-        لأن LLM له حد للـ context window.
-        chunk_size = 512 token (افتراضي)
-        chunk_overlap = 50 token (تداخل لحفظ السياق)
-
-    Re-ranking in RAG (Lecture 3 — Hybrid Serial):
-        Stage 1: BM25 يسترجع top-50 candidates
-        Stage 2: Cross-encoder يُعيد ترتيبها
-        Stage 3: أفضل K وثائق تذهب للـ LLM
-
-SOA Role (Project Spec):
-    خدمة RAG مستقلة على Port 8008.
-    تستدعي: Retrieval Service → Embedding Service → Claude API
-    Gateway يُوجّه طلبات /rag إليها.
-
-مصدر: Lewis et al. 2020 "Retrieval-Augmented Generation for
-        Knowledge-Intensive NLP Tasks" — Facebook AI Research
-"""
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -91,9 +23,9 @@ RETRIEVAL_URL  = "http://localhost:8003"
 EMBEDDING_URL  = "http://localhost:8006"
 
 # ── Anthropic API ──
-# يُستخدم claude-sonnet-4-20250514 حسب المتطلبات
+# يُستخدم claude-sonnet-4-6 حسب المتطلبات
 ANTHROPIC_API_URL   = "https://api.anthropic.com/v1/messages"
-CLAUDE_MODEL        = "claude-sonnet-4-20250514"
+CLAUDE_MODEL        = "claude-sonnet-4-6"
 ANTHROPIC_API_KEY   = ""  # يُضاف من الـ environment أو يُمرَّر في الطلب
 
 
